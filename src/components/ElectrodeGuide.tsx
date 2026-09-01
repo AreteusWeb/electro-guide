@@ -320,23 +320,25 @@ export function ElectrodeGuide() {
           </div>
         ) : null}
 
-        {cameraOn && assessment.message ? (
-          <div className="banner banner-warn" role="status">
-            {assessment.message}
-          </div>
-        ) : null}
       </div>
 
       {cameraOn ? (
         <div className="hud">
           <div className="hud-top">
-            <div className={`pill ${detected ? "ok" : "off"}`}>
-              {detected ? "Torso detected" : "Torso not detected"}
+            <div className="hud-chips">
+              <div className={`pill ${detected ? "ok" : "off"}`}>
+                {detected ? "Torso detected" : "Torso not detected"}
+              </div>
+              <div className="legend">
+                <span className="swatch precordial" /> V1–V6
+                <span className="swatch limb" /> RA/LA/RL/LL
+              </div>
             </div>
-            <div className="legend">
-              <span className="swatch precordial" /> V1–V6
-              <span className="swatch limb" /> RA/LA/RL/LL
-            </div>
+            {assessment.message ? (
+              <div className="banner banner-warn" role="status">
+                {assessment.message}
+              </div>
+            ) : null}
           </div>
 
           <div className="hud-bottom">

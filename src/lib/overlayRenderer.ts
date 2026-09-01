@@ -61,7 +61,7 @@ export function drawOverlay(
   }
 
   if (frame.electrodes) {
-    drawElectrodes(ctx, frame.electrodes, toScreen, torsoPx, ui);
+    drawElectrodes(ctx, frame.electrodes, toScreen, torsoPx, ui, displayWidth);
   }
 }
 
@@ -204,9 +204,11 @@ function drawElectrodes(
   toScreen: (x: number, y: number) => ScreenPoint,
   torsoPx: number,
   ui: number,
+  displayWidth: number,
 ): void {
-  const radius = electrodeRadius(torsoPx, ui);
-  ctx.font = `600 ${11 * ui}px ui-sans-serif, system-ui, sans-serif`;
+  const radius = electrodeRadius(torsoPx, ui, displayWidth);
+  const labelSize = displayWidth < 768 ? 13 * ui : 11 * ui;
+  ctx.font = `600 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
 
   for (const electrode of electrodes) {
@@ -239,11 +241,15 @@ function drawElectrodes(
   ctx.textAlign = "left";
 }
 
-function electrodeRadius(torsoPx: number, ui: number): number {
+function electrodeRadius(torsoPx: number, ui: number, displayWidth: number): number {
+  const mobile = displayWidth < 768;
+  const ratio = mobile ? 34 / 300 : ELECTRODE_TO_CHEST;
+  const minR = mobile ? 9 : 5.5 * ui;
+  const maxR = mobile ? 16 : 13 * ui;
   if (torsoPx > 0) {
-    return clamp(torsoPx * ELECTRODE_TO_CHEST, 5.5 * ui, 13 * ui);
+    return clamp(torsoPx * ratio, minR, maxR);
   }
-  return 7.5 * ui;
+  return mobile ? 11 : 7.5 * ui;
 }
 
 function drawHaloText(
