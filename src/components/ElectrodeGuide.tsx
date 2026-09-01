@@ -15,10 +15,10 @@ import { OverlayCanvas } from "./OverlayCanvas";
 const MIRROR_VIDEO = true;
 
 const VIDEO_WINDOW_DEFAULT_VH = 84;
+const VIDEO_WINDOW_DESKTOP_VH = 100;
 const VIDEO_WINDOW_MIN_VH = 38;
-const VIDEO_WINDOW_MAX_VH = 91;
+const VIDEO_WINDOW_MAX_VH = 100;
 const DESKTOP_MQ = "(min-width: 768px)";
-const DESKTOP_MAX_WIDTH_PX = 576;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -28,12 +28,9 @@ function getDefaultWindowHeightVh(): number {
   if (typeof window === "undefined") {
     return VIDEO_WINDOW_DEFAULT_VH;
   }
-  if (!window.matchMedia(DESKTOP_MQ).matches) {
-    return VIDEO_WINDOW_DEFAULT_VH;
-  }
-  const width = Math.min(window.innerWidth * 0.92, DESKTOP_MAX_WIDTH_PX);
-  const height = width * (9 / 16);
-  return clamp((height / window.innerHeight) * 100, 34, 70);
+  return window.matchMedia(DESKTOP_MQ).matches
+    ? VIDEO_WINDOW_DESKTOP_VH
+    : VIDEO_WINDOW_DEFAULT_VH;
 }
 
 export function ElectrodeGuide() {
@@ -49,6 +46,7 @@ export function ElectrodeGuide() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [frameSize, setFrameSize] = useState({ width: 1280, height: 720 });
   const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
@@ -120,8 +118,11 @@ export function ElectrodeGuide() {
     };
   }, []);
 
-  const handleCameraReady = useCallback((_width: number, _height: number) => {
+  const handleCameraReady = useCallback((width: number, height: number) => {
     setCameraError(null);
+    if (width > 0 && height > 0) {
+      setFrameSize({ width, height });
+    }
   }, []);
 
   const handleCameraError = useCallback((message: string) => {
@@ -255,6 +256,7 @@ export function ElectrodeGuide() {
     };
   }, [cameraOn, modelState]);
 
+  const aspect = frameSize.width / frameSize.height;
   const detected = cameraOn && assessment.detected && assessment.issue === null;
 
   return (
@@ -264,6 +266,7 @@ export function ElectrodeGuide() {
           className="viewport"
           style={{
             ["--video-window-vh" as string]: String(windowHeightVh),
+            ["--ar" as string]: String(aspect),
           }}
         >
           <CameraFeed
