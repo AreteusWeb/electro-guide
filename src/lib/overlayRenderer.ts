@@ -8,6 +8,16 @@ const DEBUG_COLOR = "#ff6b9d";
 const TORSO_FILL = "rgba(62, 224, 199, 0.08)";
 const TORSO_STROKE = "rgba(62, 224, 199, 0.4)";
 
+/** Real electrode pad ~20mm; adult chest width ~300mm. */
+const ELECTRODE_TO_CHEST = 20 / 300;
+
+export type OverlayView = {
+  videoWidth: number;
+  videoHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+};
+
 export type OverlayFrame = {
   landmarks: PoseLandmarks | null;
   electrodes: ElectrodePoint[] | null;
@@ -16,38 +26,62 @@ export type OverlayFrame = {
   mirrored: boolean;
 };
 
+type ScreenPoint = { x: number; y: number };
+
 export function drawOverlay(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
+  view: OverlayView,
   frame: OverlayFrame,
 ): void {
-  ctx.clearRect(0, 0, width, height);
+  const { displayWidth, displayHeight } = view;
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
 
-  if (!frame.landmarks) {
+  if (!frame.landmarks || view.videoWidth < 1 || view.videoHeight < 1) {
     return;
   }
 
-  const toScreen = (x: number, y: number) => ({
-    x: (frame.mirrored ? 1 - x : x) * width,
-    y: y * height,
-  });
+  const cover = coverLayout(view);
+  const toScreen = (x: number, y: number): ScreenPoint => {
+    const vx = (frame.mirrored ? 1 - x : x) * view.videoWidth;
+    const vy = y * view.videoHeight;
+    return {
+      x: cover.offsetX + vx * cover.scale,
+      y: cover.offsetY + vy * cover.scale,
+    };
+  };
 
-  drawTorsoSilhouette(ctx, frame.landmarks, toScreen);
+  const torso = getTorsoFrame(frame.landmarks);
+  const torsoPx = torso ? torso.torsoWidth * view.videoWidth * cover.scale : 0;
+  const ui = clamp(displayWidth / 420, 0.8, 1.35);
+
+  drawTorsoSilhouette(ctx, frame.landmarks, toScreen, ui);
 
   if (frame.showDebug) {
-    drawDebugSkeleton(ctx, frame.landmarks, toScreen, width);
+    drawDebugSkeleton(ctx, frame.landmarks, toScreen, ui);
   }
 
   if (frame.electrodes) {
-    drawElectrodes(ctx, frame.electrodes, toScreen, width);
+    drawElectrodes(ctx, frame.electrodes, toScreen, torsoPx, ui);
   }
+}
+
+function coverLayout(view: OverlayView): { scale: number; offsetX: number; offsetY: number } {
+  const scale = Math.max(
+    view.displayWidth / view.videoWidth,
+    view.displayHeight / view.videoHeight,
+  );
+  return {
+    scale,
+    offsetX: (view.displayWidth - view.videoWidth * scale) / 2,
+    offsetY: (view.displayHeight - view.videoHeight * scale) / 2,
+  };
 }
 
 function drawTorsoSilhouette(
   ctx: CanvasRenderingContext2D,
   landmarks: PoseLandmarks,
-  toScreen: (x: number, y: number) => { x: number; y: number },
+  toScreen: (x: number, y: number) => ScreenPoint,
+  ui: number,
 ): void {
   const torso = getTorsoFrame(landmarks);
   if (!torso) {
@@ -78,7 +112,7 @@ function drawTorsoSilhouette(
   ctx.fillStyle = TORSO_FILL;
   ctx.fill();
   ctx.strokeStyle = TORSO_STROKE;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.75 * ui;
   ctx.stroke();
 }
 
@@ -98,11 +132,11 @@ function offsetPoint(
 function drawDebugSkeleton(
   ctx: CanvasRenderingContext2D,
   landmarks: PoseLandmarks,
-  toScreen: (x: number, y: number) => { x: number; y: number },
-  width: number,
+  toScreen: (x: number, y: number) => ScreenPoint,
+  ui: number,
 ): void {
   ctx.strokeStyle = DEBUG_COLOR;
-  ctx.lineWidth = Math.max(1.5, width * 0.0018);
+  ctx.lineWidth = 1.5 * ui;
   ctx.globalAlpha = 0.85;
 
   for (const [a, b] of POSE_CONNECTIONS) {
@@ -127,8 +161,8 @@ function drawDebugSkeleton(
     [POSE_INDEX.RIGHT_HIP, "RH"],
   ] as const;
 
-  const r = Math.max(4, width * 0.007);
-  ctx.font = `${Math.max(11, width * 0.012)}px ui-sans-serif, system-ui, sans-serif`;
+  const r = 4.5 * ui;
+  ctx.font = `${11 * ui}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textBaseline = "middle";
 
   for (const [index, label] of key) {
@@ -141,18 +175,18 @@ function drawDebugSkeleton(
     ctx.fillStyle = DEBUG_COLOR;
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5 * ui;
     ctx.strokeStyle = "#1a0a12";
     ctx.stroke();
 
-    drawHaloText(ctx, label, p.x + r + 6, p.y, "#ffd0de");
+    drawHaloText(ctx, label, p.x + r + 6 * ui, p.y, "#ffd0de", ui);
   }
 
   const torso = getTorsoFrame(landmarks);
   if (torso) {
     const o = toScreen(torso.origin.x, torso.origin.y);
     const h = toScreen(torso.midHips.x, torso.midHips.y);
-    ctx.setLineDash([6, 6]);
+    ctx.setLineDash([5 * ui, 5 * ui]);
     ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
     ctx.beginPath();
     ctx.moveTo(o.x, o.y);
@@ -167,11 +201,12 @@ function drawDebugSkeleton(
 function drawElectrodes(
   ctx: CanvasRenderingContext2D,
   electrodes: ElectrodePoint[],
-  toScreen: (x: number, y: number) => { x: number; y: number },
-  width: number,
+  toScreen: (x: number, y: number) => ScreenPoint,
+  torsoPx: number,
+  ui: number,
 ): void {
-  const radius = Math.max(4, width * 0.0065);
-  ctx.font = `600 ${Math.max(11, width * 0.012)}px ui-sans-serif, system-ui, sans-serif`;
+  const radius = electrodeRadius(torsoPx, ui);
+  ctx.font = `600 ${11 * ui}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
 
   for (const electrode of electrodes) {
@@ -181,14 +216,14 @@ function drawElectrodes(
 
     ctx.beginPath();
     ctx.fillStyle = "rgba(7, 9, 12, 0.4)";
-    ctx.arc(p.x, p.y, radius + 2, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, radius + 1.5 * ui, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.beginPath();
     ctx.fillStyle = color;
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.25 * ui;
     ctx.strokeStyle = "#071014";
     ctx.stroke();
 
@@ -198,10 +233,17 @@ function drawElectrodes(
     ctx.fill();
 
     ctx.textAlign = "center";
-    drawHaloText(ctx, electrode.id, p.x, p.y - radius - 3, color);
+    drawHaloText(ctx, electrode.id, p.x, p.y - radius - 3 * ui, color, ui);
   }
 
   ctx.textAlign = "left";
+}
+
+function electrodeRadius(torsoPx: number, ui: number): number {
+  if (torsoPx > 0) {
+    return clamp(torsoPx * ELECTRODE_TO_CHEST, 5.5 * ui, 13 * ui);
+  }
+  return 7.5 * ui;
 }
 
 function drawHaloText(
@@ -210,10 +252,15 @@ function drawHaloText(
   x: number,
   y: number,
   fill: string,
+  ui: number,
 ): void {
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3.5 * ui;
   ctx.strokeStyle = "rgba(7, 9, 12, 0.85)";
   ctx.strokeText(text, x, y);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

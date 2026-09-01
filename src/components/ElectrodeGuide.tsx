@@ -17,9 +17,23 @@ const MIRROR_VIDEO = true;
 const VIDEO_WINDOW_DEFAULT_VH = 84;
 const VIDEO_WINDOW_MIN_VH = 38;
 const VIDEO_WINDOW_MAX_VH = 91;
+const DESKTOP_MQ = "(min-width: 768px)";
+const DESKTOP_MAX_WIDTH_PX = 576;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function getDefaultWindowHeightVh(): number {
+  if (typeof window === "undefined") {
+    return VIDEO_WINDOW_DEFAULT_VH;
+  }
+  if (!window.matchMedia(DESKTOP_MQ).matches) {
+    return VIDEO_WINDOW_DEFAULT_VH;
+  }
+  const width = Math.min(window.innerWidth * 0.92, DESKTOP_MAX_WIDTH_PX);
+  const height = width * (9 / 16);
+  return clamp((height / window.innerHeight) * 100, 34, 70);
 }
 
 export function ElectrodeGuide() {
@@ -38,7 +52,8 @@ export function ElectrodeGuide() {
   const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
-  const [windowHeightVh, setWindowHeightVh] = useState(VIDEO_WINDOW_DEFAULT_VH);
+  const [windowHeightVh, setWindowHeightVh] = useState(getDefaultWindowHeightVh);
+  const hasCustomHeight = useRef(false);
   const resizeDragRef = useRef<{
     pointerId: number;
     startY: number;
@@ -90,6 +105,21 @@ export function ElectrodeGuide() {
     smootherRef.current.setAlpha(calibration.alpha);
   }, [calibration.alpha]);
 
+  useEffect(() => {
+    const applyDefault = () => {
+      if (!hasCustomHeight.current) {
+        setWindowHeightVh(getDefaultWindowHeightVh());
+      }
+    };
+    const mq = window.matchMedia(DESKTOP_MQ);
+    mq.addEventListener("change", applyDefault);
+    window.addEventListener("resize", applyDefault);
+    return () => {
+      mq.removeEventListener("change", applyDefault);
+      window.removeEventListener("resize", applyDefault);
+    };
+  }, []);
+
   const handleCameraReady = useCallback((_width: number, _height: number) => {
     setCameraError(null);
   }, []);
@@ -122,6 +152,7 @@ export function ElectrodeGuide() {
       return;
     }
     const deltaVh = ((event.clientY - drag.startY) / viewportH) * 100;
+    hasCustomHeight.current = true;
     setWindowHeightVh(
       clamp(drag.startVh + deltaVh, VIDEO_WINDOW_MIN_VH, VIDEO_WINDOW_MAX_VH),
     );
@@ -159,9 +190,16 @@ export function ElectrodeGuide() {
         const height = video.videoHeight;
 
         if (width > 0 && height > 0) {
-          if (canvas.width !== width || canvas.height !== height) {
-            canvas.width = width;
-            canvas.height = height;
+          const rect = canvas.getBoundingClientRect();
+          const displayWidth = rect.width;
+          const displayHeight = rect.height;
+          const dpr = window.devicePixelRatio || 1;
+          const pixelWidth = Math.max(1, Math.round(displayWidth * dpr));
+          const pixelHeight = Math.max(1, Math.round(displayHeight * dpr));
+
+          if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+            canvas.width = pixelWidth;
+            canvas.height = pixelHeight;
           }
 
           const raw = detector.detect(video);
@@ -174,13 +212,23 @@ export function ElectrodeGuide() {
             pose.detected && smoothed ? mapElectrodes(smoothed, calibrationRef.current) : null;
 
           const ctx = canvas.getContext("2d");
-          if (ctx) {
-            drawOverlay(ctx, width, height, {
-              landmarks: smoothed,
-              electrodes,
-              showDebug: showDebugRef.current,
-              mirrored: MIRROR_VIDEO,
-            });
+          if (ctx && displayWidth > 0 && displayHeight > 0) {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            drawOverlay(
+              ctx,
+              {
+                videoWidth: width,
+                videoHeight: height,
+                displayWidth,
+                displayHeight,
+              },
+              {
+                landmarks: smoothed,
+                electrodes,
+                showDebug: showDebugRef.current,
+                mirrored: MIRROR_VIDEO,
+              },
+            );
           }
 
           const statusKey = `${pose.detected}:${pose.issue ?? ""}:${pose.message ?? ""}`;
