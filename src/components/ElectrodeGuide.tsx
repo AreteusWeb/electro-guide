@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   DEFAULT_CALIBRATION,
   type CalibrationSettings,
@@ -14,6 +14,14 @@ import { OverlayCanvas } from "./OverlayCanvas";
 
 const MIRROR_VIDEO = true;
 
+const VIDEO_WINDOW_DEFAULT_VH = 84;
+const VIDEO_WINDOW_MIN_VH = 38;
+const VIDEO_WINDOW_MAX_VH = 91;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 export function ElectrodeGuide() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,10 +35,15 @@ export function ElectrodeGuide() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [frameSize, setFrameSize] = useState({ width: 1280, height: 720 });
   const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
+  const [windowHeightVh, setWindowHeightVh] = useState(VIDEO_WINDOW_DEFAULT_VH);
+  const resizeDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startVh: number;
+  } | null>(null);
   const [assessment, setAssessment] = useState<PoseAssessment>({
     detected: false,
     issue: "no-torso",
@@ -77,14 +90,47 @@ export function ElectrodeGuide() {
     smootherRef.current.setAlpha(calibration.alpha);
   }, [calibration.alpha]);
 
-  const handleCameraReady = useCallback((width: number, height: number) => {
+  const handleCameraReady = useCallback((_width: number, _height: number) => {
     setCameraError(null);
-    setFrameSize({ width, height });
   }, []);
 
   const handleCameraError = useCallback((message: string) => {
     setCameraError(message);
     setCameraOn(false);
+  }, []);
+
+  const handleResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      resizeDragRef.current = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startVh: windowHeightVh,
+      };
+    },
+    [windowHeightVh],
+  );
+
+  const handleResizePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = resizeDragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+    const viewportH = window.visualViewport?.height ?? window.innerHeight;
+    if (viewportH <= 0) {
+      return;
+    }
+    const deltaVh = ((event.clientY - drag.startY) / viewportH) * 100;
+    setWindowHeightVh(
+      clamp(drag.startVh + deltaVh, VIDEO_WINDOW_MIN_VH, VIDEO_WINDOW_MAX_VH),
+    );
+  }, []);
+
+  const endResizeDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (resizeDragRef.current?.pointerId === event.pointerId) {
+      resizeDragRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -161,18 +207,17 @@ export function ElectrodeGuide() {
     };
   }, [cameraOn, modelState]);
 
-  const aspect = frameSize.width / frameSize.height;
   const detected = cameraOn && assessment.detected && assessment.issue === null;
 
   return (
     <div className="guide">
-      <div
-        className="stage"
-        style={{
-          ["--ar" as string]: String(aspect),
-        }}
-      >
-        <div className="viewport">
+      <div className="stage">
+        <div
+          className="viewport"
+          style={{
+            ["--video-window-vh" as string]: String(windowHeightVh),
+          }}
+        >
           <CameraFeed
             videoRef={videoRef}
             active={cameraOn}
@@ -180,6 +225,19 @@ export function ElectrodeGuide() {
             onError={handleCameraError}
           />
           <OverlayCanvas canvasRef={canvasRef} />
+          <div
+            className="viewport-handle"
+            role="slider"
+            aria-label="Resize camera window"
+            aria-orientation="vertical"
+            aria-valuemin={VIDEO_WINDOW_MIN_VH}
+            aria-valuemax={VIDEO_WINDOW_MAX_VH}
+            aria-valuenow={Math.round(windowHeightVh)}
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={endResizeDrag}
+            onPointerCancel={endResizeDrag}
+          />
         </div>
 
         {!cameraOn ? (
