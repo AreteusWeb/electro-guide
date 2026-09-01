@@ -207,7 +207,7 @@ function drawElectrodes(
   displayWidth: number,
 ): void {
   const radius = electrodeRadius(torsoPx, ui, displayWidth);
-  const labelSize = displayWidth < 768 ? 13 * ui : 11 * ui;
+  const labelSize = displayWidth < 768 ? 12 * ui : 11 * ui;
   ctx.font = `600 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
 
@@ -243,13 +243,13 @@ function drawElectrodes(
 
 function electrodeRadius(torsoPx: number, ui: number, displayWidth: number): number {
   const mobile = displayWidth < 768;
-  const ratio = mobile ? 34 / 300 : ELECTRODE_TO_CHEST;
-  const minR = mobile ? 9 : 5.5 * ui;
-  const maxR = mobile ? 16 : 13 * ui;
+  const ratio = mobile ? 24 / 300 : ELECTRODE_TO_CHEST;
+  const minR = mobile ? 7 : 5.5 * ui;
+  const maxR = mobile ? 10 : 13 * ui;
   if (torsoPx > 0) {
     return clamp(torsoPx * ratio, minR, maxR);
   }
-  return mobile ? 11 : 7.5 * ui;
+  return mobile ? 8.5 : 7.5 * ui;
 }
 
 function drawHaloText(

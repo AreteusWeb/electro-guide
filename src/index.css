@@ -183,7 +183,7 @@ input {
 .hud-top {
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 14px;
 }
 
 .hud-chips {
@@ -379,6 +379,17 @@ input {
   .hud {
     padding: calc(12px + env(safe-area-inset-top, 0px)) 12px
       calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .hud-chips {
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pill,
+  .legend {
+    padding: 6px 10px;
+    font-size: 0.78rem;
   }
 
   .idle-card {
