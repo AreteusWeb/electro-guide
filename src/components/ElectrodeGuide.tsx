@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   DEFAULT_CALIBRATION,
+  ELECTRODE_IDS,
   type CalibrationSettings,
+  type ElectrodePlacement,
+  type PlacementSummary,
   type PoseAssessment,
 } from "../types/electrode";
-import { assessTorsoPose, mapElectrodes } from "../lib/electrodeMapping";
+import { assessTorsoPose, getTorsoFrame, mapElectrodes } from "../lib/electrodeMapping";
+import { matchCirclesToTargets, summarizePlacements } from "../lib/electrodeMatch";
 import { drawOverlay } from "../lib/overlayRenderer";
 import { PoseDetector } from "../lib/poseDetector";
+import { detectStickerCircles } from "../lib/simpleCircleDetector";
 import { LandmarkSmoother } from "../lib/smoothing";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { CameraFeed } from "./CameraFeed";
 import { OverlayCanvas } from "./OverlayCanvas";
+
+const CIRCLE_DETECT_EVERY_MS = 400;
+const HOLD_EMPTY_DETECTIONS = 4;
 
 const MIRROR_VIDEO = true;
 
@@ -37,10 +45,15 @@ export function ElectrodeGuide() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectorRef = useRef<PoseDetector | null>(null);
+  const stickerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const smootherRef = useRef(new LandmarkSmoother(DEFAULT_CALIBRATION.alpha));
   const calibrationRef = useRef<CalibrationSettings>(DEFAULT_CALIBRATION);
   const showDebugRef = useRef(true);
   const lastStatusKey = useRef("");
+  const lastPlacementKey = useRef("");
+  const placementsRef = useRef<ElectrodePlacement[]>([]);
+  const lastCircleDetectAtRef = useRef(0);
+  const emptyDetectStreakRef = useRef(0);
 
   const [modelState, setModelState] = useState<"loading" | "ready" | "error">("loading");
   const [modelError, setModelError] = useState<string | null>(null);
@@ -57,6 +70,12 @@ export function ElectrodeGuide() {
     startY: number;
     startVh: number;
   } | null>(null);
+  const [circleDetectorState] = useState<"loading" | "ready" | "error">("ready");
+  const [placementSummary, setPlacementSummary] = useState<PlacementSummary>({
+    detected: 0,
+    placed: 0,
+    total: ELECTRODE_IDS.length,
+  });
   const [assessment, setAssessment] = useState<PoseAssessment>({
     detected: false,
     issue: "no-torso",
@@ -77,25 +96,29 @@ export function ElectrodeGuide() {
     detector
       .init()
       .then(() => {
-        if (!cancelled) {
-          setModelState("ready");
+        if (cancelled) {
+          return;
         }
+        setModelState("ready");
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
-          setModelState("error");
-          setModelError(
-            error instanceof Error
-              ? error.message
-              : "Could not load the pose model.",
-          );
+        if (cancelled) {
+          return;
         }
+        setModelState("error");
+        setModelError(
+          error instanceof Error
+            ? error.message
+            : "Could not load the pose model.",
+        );
       });
 
     return () => {
       cancelled = true;
       detector.close();
-      detectorRef.current = null;
+      if (detectorRef.current === detector) {
+        detectorRef.current = null;
+      }
     };
   }, []);
 
@@ -173,6 +196,10 @@ export function ElectrodeGuide() {
     const smoother = smootherRef.current;
     smoother.reset();
     lastStatusKey.current = "";
+    lastPlacementKey.current = "";
+    placementsRef.current = [];
+    lastCircleDetectAtRef.current = 0;
+    emptyDetectStreakRef.current = 0;
 
     let raf = 0;
     let cancelled = false;
@@ -203,14 +230,57 @@ export function ElectrodeGuide() {
             canvas.height = pixelHeight;
           }
 
-          const raw = detector.detect(video);
+          let raw: ReturnType<PoseDetector["detect"]> = null;
+          try {
+            raw = detector.detect(video);
+          } catch {
+            raw = null;
+          }
           if (!raw) {
             smoother.reset();
           }
           const smoothed = raw ? smoother.apply(raw) : null;
           const pose = assessTorsoPose(smoothed);
-          const electrodes =
-            pose.detected && smoothed ? mapElectrodes(smoothed, calibrationRef.current) : null;
+          const electrodes = smoothed ? mapElectrodes(smoothed, calibrationRef.current) : null;
+
+          const now = performance.now();
+          if (
+            smoothed &&
+            electrodes &&
+            now - lastCircleDetectAtRef.current >= CIRCLE_DETECT_EVERY_MS
+          ) {
+            lastCircleDetectAtRef.current = now;
+            if (!stickerCanvasRef.current) {
+              stickerCanvasRef.current = document.createElement("canvas");
+            }
+            let circles: ReturnType<typeof detectStickerCircles> = [];
+            try {
+              circles = detectStickerCircles(video, smoothed, stickerCanvasRef.current);
+            } catch {
+              circles = [];
+            }
+            if (circles.length === 0) {
+              emptyDetectStreakRef.current += 1;
+              if (emptyDetectStreakRef.current >= HOLD_EMPTY_DETECTIONS) {
+                placementsRef.current = [];
+              }
+            } else {
+              emptyDetectStreakRef.current = 0;
+              const torso = getTorsoFrame(smoothed);
+              placementsRef.current = matchCirclesToTargets(
+                circles,
+                electrodes,
+                torso?.torsoWidth ?? 0.3,
+                width,
+                height,
+              );
+            }
+          } else if (!electrodes) {
+            placementsRef.current = [];
+            emptyDetectStreakRef.current = 0;
+          }
+
+          const placements = placementsRef.current;
 
           const ctx = canvas.getContext("2d");
           if (ctx && displayWidth > 0 && displayHeight > 0) {
@@ -226,6 +296,7 @@ export function ElectrodeGuide() {
               {
                 landmarks: smoothed,
                 electrodes,
+                placements,
                 showDebug: showDebugRef.current,
                 mirrored: MIRROR_VIDEO,
               },
@@ -236,6 +307,13 @@ export function ElectrodeGuide() {
           if (statusKey !== lastStatusKey.current) {
             lastStatusKey.current = statusKey;
             setAssessment(pose);
+          }
+
+          const nextSummary = summarizePlacements(placements, ELECTRODE_IDS.length);
+          const placementKey = `${nextSummary.detected}:${nextSummary.placed}`;
+          if (placementKey !== lastPlacementKey.current) {
+            lastPlacementKey.current = placementKey;
+            setPlacementSummary(nextSummary);
           }
         }
       }
@@ -300,6 +378,11 @@ export function ElectrodeGuide() {
               V1–V6) overlaid on your torso. This is an assistance guide, not a
               certified medical device.
             </p>
+            <p className="sticker-hint">
+              For live detection, use solid 20mm stickers in a bright,
+              high-contrast color — green, orange, magenta, or blue. Avoid
+              skin-like tones.
+            </p>
             {modelState === "loading" ? (
               <p className="status-line">Loading pose model…</p>
             ) : null}
@@ -339,6 +422,20 @@ export function ElectrodeGuide() {
                 {assessment.message}
               </div>
             ) : null}
+            {detected ? (
+              <div
+                className={`pill placement ${placementSummary.placed === placementSummary.total ? "ok" : ""}`}
+              >
+                {circleDetectorState === "loading"
+                  ? "Loading circle detector…"
+                  : circleDetectorState === "error"
+                    ? "Circle detector unavailable"
+                    : `${placementSummary.detected}/10 electrodes detected, ${placementSummary.placed} correctly placed`}
+              </div>
+            ) : null}
+            <p className="sticker-hint hud-hint">
+              20mm bright green, orange, magenta, or blue stickers work best.
+            </p>
           </div>
 
           <div className="hud-bottom">

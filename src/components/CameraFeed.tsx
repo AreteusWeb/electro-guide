@@ -23,7 +23,9 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
 
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        onError("This browser does not allow camera access.");
+        if (!cancelled) {
+          onError("This browser does not allow camera access.");
+        }
         return;
       }
 
@@ -39,6 +41,7 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
 
         if (cancelled) {
           stopStream(stream);
+          stream = null;
           return;
         }
 
@@ -47,7 +50,19 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
         video.playsInline = true;
         await video.play();
 
+        if (cancelled) {
+          stopStream(stream);
+          if (video.srcObject === stream) {
+            video.srcObject = null;
+          }
+          stream = null;
+          return;
+        }
+
         const applySize = () => {
+          if (cancelled) {
+            return;
+          }
           if (video.videoWidth > 0 && video.videoHeight > 0) {
             onReady(video.videoWidth, video.videoHeight);
           }
@@ -59,6 +74,9 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
           video.addEventListener("loadedmetadata", applySize, { once: true });
         }
       } catch (error) {
+        if (cancelled) {
+          return;
+        }
         const name = error instanceof DOMException ? error.name : "";
         if (name === "NotAllowedError" || name === "PermissionDeniedError") {
           onError("Camera permission denied. Enable it in the browser to continue.");
@@ -78,9 +96,10 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
       if (current instanceof MediaStream) {
         stopStream(current);
       }
-      if (stream) {
+      if (stream && stream !== current) {
         stopStream(stream);
       }
+      stream = null;
       video.srcObject = null;
     };
   }, [active, onError, onReady, videoRef]);

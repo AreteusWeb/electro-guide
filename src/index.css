@@ -126,6 +126,22 @@ input {
   line-height: 1.45;
 }
 
+.sticker-hint {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.hud-hint {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+
 .idle-card .primary-btn {
   margin-top: 4px;
 }
@@ -211,6 +227,11 @@ input {
 .pill.off {
   border-color: rgba(255, 107, 107, 0.35);
   color: #ffb4b4;
+}
+
+.pill.placement {
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 .legend {

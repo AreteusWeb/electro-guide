@@ -1,15 +1,21 @@
-import { LIMB_ELECTRODES, POSE_INDEX, type ElectrodePoint, type Landmark, type PoseLandmarks } from "../types/electrode";
+import {
+  LIMB_ELECTRODES,
+  POSE_INDEX,
+  type ElectrodePlacement,
+  type ElectrodePoint,
+  type Landmark,
+  type PoseLandmarks,
+} from "../types/electrode";
 import { getTorsoFrame } from "./electrodeMapping";
 import { POSE_CONNECTIONS } from "./poseDetector";
 
 const LIMB_COLOR = "#f0b429";
 const PRECORDIAL_COLOR = "#3ee0c7";
 const DEBUG_COLOR = "#ff6b9d";
+const PLACED_COLOR = "#4ade80";
+const OFFSET_COLOR = "#ff8a4c";
 const TORSO_FILL = "rgba(62, 224, 199, 0.08)";
 const TORSO_STROKE = "rgba(62, 224, 199, 0.4)";
-
-/** Real electrode pad ~20mm; adult chest width ~300mm. */
-const ELECTRODE_TO_CHEST = 20 / 300;
 
 export type OverlayView = {
   videoWidth: number;
@@ -21,6 +27,7 @@ export type OverlayView = {
 export type OverlayFrame = {
   landmarks: PoseLandmarks | null;
   electrodes: ElectrodePoint[] | null;
+  placements: ElectrodePlacement[] | null;
   showDebug: boolean;
   /** Video is CSS-mirrored; canvas is not, so we flip x when drawing. */
   mirrored: boolean;
@@ -61,7 +68,15 @@ export function drawOverlay(
   }
 
   if (frame.electrodes) {
-    drawElectrodes(ctx, frame.electrodes, toScreen, torsoPx, ui, displayWidth);
+    drawElectrodes(
+      ctx,
+      frame.electrodes,
+      frame.placements ?? [],
+      toScreen,
+      torsoPx,
+      ui,
+      displayWidth,
+    );
   }
 }
 
@@ -201,6 +216,7 @@ function drawDebugSkeleton(
 function drawElectrodes(
   ctx: CanvasRenderingContext2D,
   electrodes: ElectrodePoint[],
+  placements: ElectrodePlacement[],
   toScreen: (x: number, y: number) => ScreenPoint,
   torsoPx: number,
   ui: number,
@@ -211,45 +227,127 @@ function drawElectrodes(
   ctx.font = `600 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
 
+  const byId = new Map(placements.map((item) => [item.id, item]));
+
   for (const electrode of electrodes) {
     const p = toScreen(electrode.x, electrode.y);
     const isLimb = LIMB_ELECTRODES.has(electrode.id);
     const color = isLimb ? LIMB_COLOR : PRECORDIAL_COLOR;
+    const placement = byId.get(electrode.id);
+    const ok = placement?.withinTolerance === true;
+    const ringColor = ok ? PLACED_COLOR : color;
 
-    ctx.beginPath();
-    ctx.fillStyle = "rgba(7, 9, 12, 0.4)";
-    ctx.arc(p.x, p.y, radius + 1.5 * ui, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.fillStyle = color;
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = 1.25 * ui;
-    ctx.strokeStyle = "#071014";
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.arc(p.x, p.y, radius * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-
+    // Hollow ring so a real sticker under the guide stays visible.
+    drawTargetRing(ctx, p, radius, ui, ringColor, Boolean(placement));
     ctx.textAlign = "center";
-    drawHaloText(ctx, electrode.id, p.x, p.y - radius - 3 * ui, color, ui);
+    drawHaloText(ctx, electrode.id, p.x, p.y - radius - 3 * ui, ringColor, ui);
+
+    if (placement) {
+      const from = toScreen(placement.detected.x, placement.detected.y);
+      const gap = Math.hypot(from.x - p.x, from.y - p.y);
+      if (ok) {
+        drawCheck(ctx, p, radius, ui);
+      } else if (gap >= radius * 1.6) {
+        drawArrow(ctx, from, p, OFFSET_COLOR, ui);
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = ok ? PLACED_COLOR : OFFSET_COLOR;
+      ctx.lineWidth = 2 * ui;
+      ctx.setLineDash(ok ? [] : [4 * ui, 3 * ui]);
+      ctx.arc(from.x, from.y, Math.max(6, radius * 0.95), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
   ctx.textAlign = "left";
 }
 
+function drawTargetRing(
+  ctx: CanvasRenderingContext2D,
+  p: ScreenPoint,
+  radius: number,
+  ui: number,
+  color: string,
+  hasSticker: boolean,
+): void {
+  ctx.beginPath();
+  ctx.fillStyle = hasSticker ? "rgba(7, 9, 12, 0.12)" : "rgba(7, 9, 12, 0.28)";
+  ctx.arc(p.x, p.y, radius + 1.5 * ui, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.25 * ui;
+  ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  ctx.arc(p.x, p.y, Math.max(2, radius * 0.22), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  from: ScreenPoint,
+  to: ScreenPoint,
+  color: string,
+  ui: number,
+): void {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 4) {
+    return;
+  }
+  const nx = dx / len;
+  const ny = dy / len;
+  const tip = 8 * ui;
+
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2 * ui;
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x - nx * tip * 0.4, to.y - ny * tip * 0.4);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(to.x - nx * tip - ny * tip * 0.45, to.y - ny * tip + nx * tip * 0.45);
+  ctx.lineTo(to.x - nx * tip + ny * tip * 0.45, to.y - ny * tip - nx * tip * 0.45);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawCheck(
+  ctx: CanvasRenderingContext2D,
+  p: ScreenPoint,
+  radius: number,
+  ui: number,
+): void {
+  ctx.strokeStyle = "#06251f";
+  ctx.lineWidth = 2 * ui;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(p.x - radius * 0.35, p.y);
+  ctx.lineTo(p.x - radius * 0.08, p.y + radius * 0.32);
+  ctx.lineTo(p.x + radius * 0.4, p.y - radius * 0.3);
+  ctx.stroke();
+}
+
 function electrodeRadius(torsoPx: number, ui: number, displayWidth: number): number {
   const mobile = displayWidth < 768;
-  const ratio = mobile ? 24 / 300 : ELECTRODE_TO_CHEST;
-  const minR = mobile ? 7 : 5.5 * ui;
-  const maxR = mobile ? 10 : 13 * ui;
+  const ratio = mobile ? 15 / 300 : 16 / 300;
+  const minR = mobile ? 4.5 : 4.5 * ui;
+  const maxR = mobile ? 7.5 : 9 * ui;
   if (torsoPx > 0) {
     return clamp(torsoPx * ratio, minR, maxR);
   }
-  return mobile ? 8.5 : 7.5 * ui;
+  return mobile ? 6 : 6 * ui;
 }
 
 function drawHaloText(

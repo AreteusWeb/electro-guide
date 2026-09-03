@@ -25,17 +25,17 @@ import {
  * limb leads on the torso). They are NOT clinically validated.
  */
 export const ELECTRODE_OFFSETS: Record<ElectrodeId, { x: number; y: number }> = {
-  // Mason-Likar on torso. A bit low is OK: these jitter more than the V leads.
-  RA: { x: -0.40, y: 0.04 },
-  LA: { x: 0.40, y: 0.04 },
-  RL: { x: -0.28, y: 0.86 },
-  LL: { x: 0.28, y: 0.86 },
-  V1: { x: -0.08, y: 0.22 },
-  V2: { x: 0.08, y: 0.22 },
-  V3: { x: 0.20, y: 0.32 },
-  V4: { x: 0.32, y: 0.46 },
-  V5: { x: 0.42, y: 0.46 },
-  V6: { x: 0.52, y: 0.46 },
+  // Mason-Likar on torso. Keep V5/V6 on the ribcage, not past the side wall.
+  RA: { x: -0.38, y: 0.00 },
+  LA: { x: 0.38, y: 0.00 },
+  RL: { x: -0.30, y: 0.90 },
+  LL: { x: 0.30, y: 0.90 },
+  V1: { x: -0.10, y: 0.24 },
+  V2: { x: 0.10, y: 0.24 },
+  V3: { x: 0.24, y: 0.34 },
+  V4: { x: 0.34, y: 0.44 },
+  V5: { x: 0.45, y: 0.44 },
+  V6: { x: 0.54, y: 0.44 },
 };
 
 /** Drop the origin from the acromion line down toward the sternal notch. */
@@ -47,10 +47,10 @@ const STERNAL_NOTCH_Y = 0.12;
 const CHEST_WIDTH_FROM_SHOULDERS = 0.73;
 
 const MIN_LANDMARK_VISIBILITY = 0.5;
-const ROTATION_Z_THRESHOLD = 0.18;
-const PROFILE_WIDTH_RATIO = 0.2;
-const TORSO_TOO_FAR = 0.14;
-const TORSO_TOO_CLOSE = 0.78;
+const ROTATION_Z_THRESHOLD = 0.35;
+const PROFILE_WIDTH_RATIO = 0.12;
+const TORSO_TOO_FAR = 0.10;
+const TORSO_TOO_CLOSE = 0.85;
 
 export type TorsoFrame = {
   origin: Landmark;
@@ -121,6 +121,53 @@ export function getTorsoFrame(landmarks: PoseLandmarks): TorsoFrame | null {
     midHips,
     nose,
   };
+}
+
+export function getTorsoPixelRoi(
+  landmarks: PoseLandmarks,
+  videoWidth: number,
+  videoHeight: number,
+  pad = 0.12,
+): { x: number; y: number; width: number; height: number } | null {
+  const frame = getTorsoFrame(landmarks);
+  if (!frame || videoWidth < 2 || videoHeight < 2) {
+    return null;
+  }
+
+  const half = frame.torsoWidth * 0.5;
+  const top = -frame.torsoHeight * 0.12;
+  const bottom = frame.torsoHeight * 1.02;
+  const lowerHalf = half * 0.82;
+  const corners = [
+    applyOffset(frame, half, top),
+    applyOffset(frame, -half, top),
+    applyOffset(frame, lowerHalf, bottom),
+    applyOffset(frame, -lowerHalf, bottom),
+  ];
+
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+  for (const corner of corners) {
+    minX = Math.min(minX, corner.x);
+    minY = Math.min(minY, corner.y);
+    maxX = Math.max(maxX, corner.x);
+    maxY = Math.max(maxY, corner.y);
+  }
+
+  const padX = (maxX - minX) * pad + 0.02;
+  const padY = (maxY - minY) * pad + 0.02;
+  const x = Math.max(0, Math.floor((minX - padX) * videoWidth));
+  const y = Math.max(0, Math.floor((minY - padY) * videoHeight));
+  const right = Math.min(videoWidth, Math.ceil((maxX + padX) * videoWidth));
+  const bottomPx = Math.min(videoHeight, Math.ceil((maxY + padY) * videoHeight));
+  const width = right - x;
+  const height = bottomPx - y;
+  if (width < 8 || height < 8) {
+    return null;
+  }
+  return { x, y, width, height };
 }
 
 export function mapElectrodes(

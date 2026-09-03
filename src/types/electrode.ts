@@ -86,3 +86,31 @@ export const DEFAULT_CALIBRATION: CalibrationSettings = {
   nudgeY: 0,
   scale: 1,
 };
+
+/** Test sticker / electrode pad diameter. */
+export const MARKER_DIAMETER_MM = 20;
+
+/** Green if the assigned circle is this close to its target. */
+export const PLACEMENT_TOLERANCE_MM = 5;
+
+export type DetectedCircle = {
+  /** Normalized image coordinates in [0, 1], same space as landmarks. */
+  x: number;
+  y: number;
+  /** Radius in source video pixels (before display cover-crop). */
+  radiusPx: number;
+};
+
+export type ElectrodePlacement = {
+  id: ElectrodeId;
+  target: ElectrodePoint;
+  detected: DetectedCircle;
+  offsetMm: number;
+  withinTolerance: boolean;
+};
+
+export type PlacementSummary = {
+  detected: number;
+  placed: number;
+  total: number;
+};
