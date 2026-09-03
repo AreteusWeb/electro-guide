@@ -59,7 +59,11 @@ export function ElectrodeGuide() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [frameSize, setFrameSize] = useState({ width: 1280, height: 720 });
+  const [frameSize, setFrameSize] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+      ? { width: 720, height: 1280 }
+      : { width: 1280, height: 720 },
+  );
   const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);

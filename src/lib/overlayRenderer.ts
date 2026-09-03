@@ -47,7 +47,7 @@ export function drawOverlay(
     return;
   }
 
-  const cover = coverLayout(view);
+  const cover = fitLayout(view);
   const toScreen = (x: number, y: number): ScreenPoint => {
     const vx = (frame.mirrored ? 1 - x : x) * view.videoWidth;
     const vy = y * view.videoHeight;
@@ -80,8 +80,9 @@ export function drawOverlay(
   }
 }
 
-function coverLayout(view: OverlayView): { scale: number; offsetX: number; offsetY: number } {
-  const scale = Math.max(
+/** Match CSS object-fit: contain so markers stay locked to the video. */
+function fitLayout(view: OverlayView): { scale: number; offsetX: number; offsetY: number } {
+  const scale = Math.min(
     view.displayWidth / view.videoWidth,
     view.displayHeight / view.videoHeight,
   );

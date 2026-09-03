@@ -49,9 +49,13 @@ input {
 
 .viewport {
   position: relative;
-  width: 100%;
+  /* Match camera aspect so we don't crop/zoom (cover on a tall phone box). */
+  width: min(100vw, calc(var(--video-window-vh, 84) * 1dvh * var(--ar, 0.5625)));
   max-width: 100%;
-  height: calc(var(--video-window-vh, 84) * 1dvh);
+  height: min(
+    calc(var(--video-window-vh, 84) * 1dvh),
+    calc(100vw / var(--ar, 0.5625))
+  );
   background: #000;
   overflow: hidden;
 }
@@ -66,14 +70,21 @@ input {
 }
 
 .camera-feed {
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   transform: scaleX(-1);
   background: #000;
+  opacity: 0;
+}
+
+.camera-feed.is-ready {
+  opacity: 1;
 }
 
 .overlay-canvas {
   pointer-events: none;
+  object-fit: contain;
+  object-position: center;
 }
 
 .viewport-handle {
