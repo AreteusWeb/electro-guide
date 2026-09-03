@@ -66,8 +66,7 @@ input {
 }
 
 .camera-feed {
-  /* contain = full person visible, no digital zoom crop */
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   transform: scaleX(-1);
   background: #000;

@@ -80,9 +80,9 @@ export function drawOverlay(
   }
 }
 
-/** Match CSS object-fit: contain so markers stay locked to the video. */
+/** Match CSS object-fit: cover so markers stay locked to the video. */
 function fitLayout(view: OverlayView): { scale: number; offsetX: number; offsetY: number } {
-  const scale = Math.min(
+  const scale = Math.max(
     view.displayWidth / view.videoWidth,
     view.displayHeight / view.videoHeight,
   );
