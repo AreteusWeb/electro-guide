@@ -54,6 +54,7 @@ export function ElectrodeGuide() {
   const placementsRef = useRef<ElectrodePlacement[]>([]);
   const lastCircleDetectAtRef = useRef(0);
   const emptyDetectStreakRef = useRef(0);
+  const videoFitRef = useRef<"cover" | "contain">("cover");
 
   const [modelState, setModelState] = useState<"loading" | "ready" | "error">("loading");
   const [modelError, setModelError] = useState<string | null>(null);
@@ -296,6 +297,7 @@ export function ElectrodeGuide() {
                 videoHeight: height,
                 displayWidth,
                 displayHeight,
+                fit: videoFitRef.current,
               },
               {
                 landmarks: smoothed,
@@ -338,14 +340,19 @@ export function ElectrodeGuide() {
     };
   }, [cameraOn, modelState]);
 
-  const aspect = frameSize.width / frameSize.height;
+  const aspect = frameSize.width / Math.max(1, frameSize.height);
+  const letterbox =
+    typeof window !== "undefined" &&
+    window.innerHeight > window.innerWidth &&
+    aspect > 1.05;
+  videoFitRef.current = letterbox ? "contain" : "cover";
   const detected = cameraOn && assessment.detected && assessment.issue === null;
 
   return (
     <div className="guide">
       <div className="stage">
         <div
-          className="viewport"
+          className={`viewport${letterbox ? " is-letterbox" : ""}`}
           style={{
             ["--video-window-vh" as string]: String(windowHeightVh),
             ["--ar" as string]: String(aspect),

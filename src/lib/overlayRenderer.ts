@@ -22,6 +22,8 @@ export type OverlayView = {
   videoHeight: number;
   displayWidth: number;
   displayHeight: number;
+  /** Match CSS object-fit on the video element. */
+  fit?: "cover" | "contain";
 };
 
 export type OverlayFrame = {
@@ -80,12 +82,12 @@ export function drawOverlay(
   }
 }
 
-/** Match CSS object-fit: cover so markers stay locked to the video. */
+/** Match CSS object-fit on .camera-feed so markers stay locked to the video. */
 function fitLayout(view: OverlayView): { scale: number; offsetX: number; offsetY: number } {
-  const scale = Math.max(
-    view.displayWidth / view.videoWidth,
-    view.displayHeight / view.videoHeight,
-  );
+  const useContain = view.fit === "contain";
+  const scale = useContain
+    ? Math.min(view.displayWidth / view.videoWidth, view.displayHeight / view.videoHeight)
+    : Math.max(view.displayWidth / view.videoWidth, view.displayHeight / view.videoHeight);
   return {
     scale,
     offsetX: (view.displayWidth - view.videoWidth * scale) / 2,

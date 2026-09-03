@@ -7,6 +7,11 @@ type CameraFeedProps = {
   onError: (message: string) => void;
 };
 
+type TrackCaps = MediaTrackCapabilities & {
+  resizeMode?: string[];
+  zoom?: { min: number; max: number; step?: number };
+};
+
 export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedProps) {
   useEffect(() => {
     if (!active) {
@@ -32,6 +37,28 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
       }
     };
 
+    const preferWideFov = async (track: MediaStreamTrack) => {
+      const caps = track.getCapabilities?.() as TrackCaps | undefined;
+      if (!caps) {
+        return;
+      }
+      const advanced: MediaTrackConstraintSet[] = [];
+      if (caps.resizeMode?.includes("none")) {
+        advanced.push({ resizeMode: "none" } as MediaTrackConstraintSet);
+      }
+      if (caps.zoom && typeof caps.zoom.min === "number") {
+        advanced.push({ zoom: caps.zoom.min } as MediaTrackConstraintSet);
+      }
+      if (advanced.length === 0) {
+        return;
+      }
+      try {
+        await track.applyConstraints({ advanced });
+      } catch {
+        // Optional — ignore if unsupported.
+      }
+    };
+
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         if (!cancelled) {
@@ -41,23 +68,14 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
       }
 
       try {
-        // Don't force 1280x720 — phones renegotiate that slowly and often
-        // start in a cropped/zoomed mode. Prefer native portrait on mobile.
         const mobile = window.matchMedia("(max-width: 767px)").matches;
+
+        // Minimal constraints first = native FOV, no slow 1280x720 renegotiation.
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: mobile
-            ? {
-                facingMode: { ideal: "user" },
-                width: { ideal: 720 },
-                height: { ideal: 1280 },
-                aspectRatio: { ideal: 9 / 16 },
-              }
-            : {
-                facingMode: { ideal: "user" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
+          video: {
+            facingMode: { ideal: "user" },
+          },
         });
 
         if (cancelled) {
@@ -68,18 +86,24 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
 
         const track = stream.getVideoTracks()[0];
         if (track) {
-          // Prefer full sensor FOV when the browser supports it (avoids digital zoom).
-          try {
-            const caps = track.getCapabilities?.() as
-              | (MediaTrackCapabilities & { resizeMode?: string[] })
-              | undefined;
-            if (caps?.resizeMode?.includes("none")) {
-              await track.applyConstraints({
-                advanced: [{ resizeMode: "none" } as MediaTrackConstraintSet],
-              });
+          await preferWideFov(track);
+
+          // On phones, nudge toward portrait if we landed on landscape.
+          if (mobile) {
+            const settings = track.getSettings();
+            const w = settings.width ?? 0;
+            const h = settings.height ?? 0;
+            if (w > h) {
+              try {
+                await track.applyConstraints({
+                  width: { ideal: 720 },
+                  height: { ideal: 1280 },
+                  aspectRatio: { ideal: 9 / 16 },
+                });
+              } catch {
+                // Keep native landscape if portrait is unavailable.
+              }
             }
-          } catch {
-            // Optional constraint — ignore if unsupported.
           }
         }
 
@@ -103,16 +127,15 @@ export function CameraFeed({ videoRef, active, onReady, onError }: CameraFeedPro
         video.addEventListener("loadedmetadata", reportSize);
         video.addEventListener("resize", reportSize);
 
-        // Some mobiles change track settings a moment after play.
         let polls = 0;
         pollId = window.setInterval(() => {
           polls += 1;
           reportSize();
-          if (polls >= 10) {
+          if (polls >= 12) {
             window.clearInterval(pollId);
             pollId = 0;
           }
-        }, 300);
+        }, 250);
       } catch (error) {
         if (cancelled) {
           return;

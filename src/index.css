@@ -49,9 +49,16 @@ input {
 
 .viewport {
   position: relative;
-  width: 100%;
+  /*
+    Match the camera aspect ratio. That way object-fit:cover fills the box
+    WITHOUT digital zoom. Resize (--video-window-vh) scales the whole box.
+  */
+  width: min(100vw, calc(var(--video-window-vh, 84) * 1dvh * var(--ar, 0.5625)));
   max-width: 100%;
-  height: calc(var(--video-window-vh, 84) * 1dvh);
+  height: min(
+    calc(var(--video-window-vh, 84) * 1dvh),
+    calc(100vw / var(--ar, 0.5625))
+  );
   background: #000;
   overflow: hidden;
 }
@@ -75,6 +82,11 @@ input {
 
 .camera-feed.is-ready {
   opacity: 1;
+}
+
+/* Landscape stream on a tall phone: prefer full body over zoomed crop */
+.viewport.is-letterbox .camera-feed {
+  object-fit: contain;
 }
 
 .overlay-canvas {
