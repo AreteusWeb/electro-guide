@@ -49,13 +49,9 @@ input {
 
 .viewport {
   position: relative;
-  /* Match camera aspect so we don't crop/zoom (cover on a tall phone box). */
-  width: min(100vw, calc(var(--video-window-vh, 84) * 1dvh * var(--ar, 0.5625)));
+  width: 100%;
   max-width: 100%;
-  height: min(
-    calc(var(--video-window-vh, 84) * 1dvh),
-    calc(100vw / var(--ar, 0.5625))
-  );
+  height: calc(var(--video-window-vh, 84) * 1dvh);
   background: #000;
   overflow: hidden;
 }
@@ -70,6 +66,7 @@ input {
 }
 
 .camera-feed {
+  /* contain = full person visible, no digital zoom crop */
   object-fit: contain;
   object-position: center;
   transform: scaleX(-1);
@@ -83,8 +80,6 @@ input {
 
 .overlay-canvas {
   pointer-events: none;
-  object-fit: contain;
-  object-position: center;
 }
 
 .viewport-handle {
@@ -96,10 +91,11 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
+  height: 36px;
   cursor: ns-resize;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 .viewport-handle::after {
