@@ -49,16 +49,11 @@ input {
 
 .viewport {
   position: relative;
-  /*
-    Match the camera aspect ratio. That way object-fit:cover fills the box
-    WITHOUT digital zoom. Resize (--video-window-vh) scales the whole box.
-  */
-  width: min(100vw, calc(var(--video-window-vh, 84) * 1dvh * var(--ar, 0.5625)));
+  width: 100%;
   max-width: 100%;
-  height: min(
-    calc(var(--video-window-vh, 84) * 1dvh),
-    calc(100vw / var(--ar, 0.5625))
-  );
+  /* Height is driven only by --video-window-vh so drag-resize always works */
+  height: calc(var(--video-window-vh, 92) * 1dvh);
+  max-height: 100dvh;
   background: #000;
   overflow: hidden;
 }
@@ -97,24 +92,27 @@ input {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  z-index: 5;
+  /* Sit on the bottom edge of the video window, above the HUD */
+  top: calc(var(--video-window-vh, 92) * 1dvh - 22px);
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
+  height: 44px;
   cursor: ns-resize;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  pointer-events: auto;
 }
 
 .viewport-handle::after {
   content: "";
-  width: 40px;
-  height: 4px;
+  width: 48px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 .idle-card {

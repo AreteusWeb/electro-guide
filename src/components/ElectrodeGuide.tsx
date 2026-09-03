@@ -22,10 +22,10 @@ const HOLD_EMPTY_DETECTIONS = 4;
 
 const MIRROR_VIDEO = true;
 
-const VIDEO_WINDOW_DEFAULT_VH = 84;
+const VIDEO_WINDOW_DEFAULT_VH = 92;
 const VIDEO_WINDOW_DESKTOP_VH = 100;
-const VIDEO_WINDOW_MIN_VH = 38;
-const VIDEO_WINDOW_MAX_VH = 100;
+const VIDEO_WINDOW_MIN_VH = 42;
+const VIDEO_WINDOW_MAX_VH = 96;
 const DESKTOP_MQ = "(min-width: 768px)";
 
 function clamp(value: number, min: number, max: number): number {
@@ -365,19 +365,6 @@ export function ElectrodeGuide() {
             onError={handleCameraError}
           />
           <OverlayCanvas canvasRef={canvasRef} />
-          <div
-            className="viewport-handle"
-            role="slider"
-            aria-label="Resize camera window"
-            aria-orientation="vertical"
-            aria-valuemin={VIDEO_WINDOW_MIN_VH}
-            aria-valuemax={VIDEO_WINDOW_MAX_VH}
-            aria-valuenow={Math.round(windowHeightVh)}
-            onPointerDown={handleResizePointerDown}
-            onPointerMove={handleResizePointerMove}
-            onPointerUp={endResizeDrag}
-            onPointerCancel={endResizeDrag}
-          />
         </div>
 
         {!cameraOn ? (
@@ -415,6 +402,25 @@ export function ElectrodeGuide() {
         ) : null}
 
       </div>
+
+      {cameraOn ? (
+        <div
+          className="viewport-handle"
+          role="slider"
+          aria-label="Resize camera window"
+          aria-orientation="vertical"
+          aria-valuemin={VIDEO_WINDOW_MIN_VH}
+          aria-valuemax={VIDEO_WINDOW_MAX_VH}
+          aria-valuenow={Math.round(windowHeightVh)}
+          style={{
+            ["--video-window-vh" as string]: String(windowHeightVh),
+          }}
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={endResizeDrag}
+          onPointerCancel={endResizeDrag}
+        />
+      ) : null}
 
       {cameraOn ? (
         <div className="hud">
