@@ -570,7 +570,7 @@ export function ElectrodeGuide() {
                   className="primary-btn toolbar-btn"
                   onClick={() => setCameraOn(false)}
                 >
-                  Stop
+                  Stop camera
                 </button>
                 <CalibrationPanel
                   open={showCalibration}
@@ -584,7 +584,7 @@ export function ElectrodeGuide() {
                   className="ghost-btn toolbar-btn"
                   onClick={() => setShowMeasureGuide(true)}
                 >
-                  Guide
+                  Measurement guide
                 </button>
                 {SHOW_DEV_TOOLS ? (
                   <label className="toggle toggle-compact hud-dev-inline">
@@ -593,7 +593,7 @@ export function ElectrodeGuide() {
                       checked={showDebug}
                       onChange={(event) => setShowDebug(event.target.checked)}
                     />
-                    Debug
+                    Debug skeleton
                   </label>
                 ) : null}
               </div>

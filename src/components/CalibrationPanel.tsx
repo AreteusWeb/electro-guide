@@ -22,7 +22,7 @@ export function CalibrationPanel({
         className={`ghost-btn${compact ? " toolbar-btn" : ""}`}
         onClick={onToggle}
       >
-        {open ? (compact ? "Close" : "Hide calibration") : compact ? "Cal" : "Calibration"}
+        {open ? (compact ? "Close" : "Hide calibration") : "Calibration"}
       </button>
 
       {open ? (
