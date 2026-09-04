@@ -677,13 +677,10 @@ input {
   }
 
   .viewport {
-    width: min(100vw, calc(var(--video-window-vh, 100) * 1dvh * var(--ar, 1.777)));
+    /* Full-bleed width on desktop; height still follows the resize handle */
+    width: 100vw;
     max-width: 100vw;
-    height: min(
-      100dvh,
-      calc(var(--video-window-vh, 100) * 1dvh),
-      calc(100vw / var(--ar, 1.777))
-    );
+    height: min(100dvh, calc(var(--video-window-vh, 100) * 1dvh));
   }
 
   .privacy-badge {
