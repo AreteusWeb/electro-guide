@@ -5,6 +5,7 @@ type CalibrationPanelProps = {
   onToggle: () => void;
   settings: CalibrationSettings;
   onChange: (next: CalibrationSettings) => void;
+  compact?: boolean;
 };
 
 export function CalibrationPanel({
@@ -12,11 +13,16 @@ export function CalibrationPanel({
   onToggle,
   settings,
   onChange,
+  compact = false,
 }: CalibrationPanelProps) {
   return (
     <section className={`calibration ${open ? "is-open" : ""}`}>
-      <button type="button" className="ghost-btn" onClick={onToggle}>
-        {open ? "Hide calibration" : "Calibration"}
+      <button
+        type="button"
+        className={`ghost-btn${compact ? " toolbar-btn" : ""}`}
+        onClick={onToggle}
+      >
+        {open ? (compact ? "Close" : "Hide calibration") : compact ? "Cal" : "Calibration"}
       </button>
 
       {open ? (

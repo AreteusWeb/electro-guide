@@ -567,37 +567,36 @@ export function ElectrodeGuide() {
               <div className="hud-actions">
                 <button
                   type="button"
-                  className="primary-btn"
+                  className="primary-btn toolbar-btn"
                   onClick={() => setCameraOn(false)}
                 >
-                  Stop camera
+                  Stop
                 </button>
                 <CalibrationPanel
                   open={showCalibration}
                   onToggle={() => setShowCalibration((open) => !open)}
                   settings={calibration}
                   onChange={setCalibration}
+                  compact
                 />
                 <button
                   type="button"
-                  className="ghost-btn"
+                  className="ghost-btn toolbar-btn"
                   onClick={() => setShowMeasureGuide(true)}
                 >
-                  Measurement guide
+                  Guide
                 </button>
-              </div>
-              {SHOW_DEV_TOOLS ? (
-                <div className="hud-devtools">
-                  <label className="toggle toggle-compact">
+                {SHOW_DEV_TOOLS ? (
+                  <label className="toggle toggle-compact hud-dev-inline">
                     <input
                       type="checkbox"
                       checked={showDebug}
                       onChange={(event) => setShowDebug(event.target.checked)}
                     />
-                    Debug skeleton
+                    Debug
                   </label>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
