@@ -72,7 +72,7 @@ export function ElectrodeGuide() {
       ? { width: 720, height: 1280 }
       : { width: 1280, height: 720 },
   );
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
   const [privacyAcked, setPrivacyAcked] = useState(false);
@@ -102,7 +102,7 @@ export function ElectrodeGuide() {
   });
 
   calibrationRef.current = calibration;
-  showDebugRef.current = SHOW_DEV_TOOLS && showDebug;
+  showDebugRef.current = showDebug;
 
   useEffect(() => {
     const detector = new PoseDetector();
@@ -586,16 +586,17 @@ export function ElectrodeGuide() {
                 >
                   Measurement guide
                 </button>
-                {SHOW_DEV_TOOLS ? (
-                  <label className="toggle toggle-compact hud-dev-inline">
-                    <input
-                      type="checkbox"
-                      checked={showDebug}
-                      onChange={(event) => setShowDebug(event.target.checked)}
-                    />
-                    Debug skeleton
-                  </label>
-                ) : null}
+                <label
+                  className="toggle toggle-compact hud-dev-inline"
+                  title="Show / hide pose skeleton"
+                >
+                  <input
+                    type="checkbox"
+                    checked={showDebug}
+                    onChange={(event) => setShowDebug(event.target.checked)}
+                  />
+                  Skeleton
+                </label>
               </div>
             </div>
           </div>

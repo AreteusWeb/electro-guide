@@ -474,6 +474,16 @@ input {
   gap: 3px;
   padding: 0 4px;
   flex: 0 0 auto;
+  max-height: 26px;
+  color: rgba(238, 244, 246, 0.7);
+  white-space: nowrap;
+}
+
+.hud-dev-inline input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .controls {
