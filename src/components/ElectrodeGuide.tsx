@@ -8,16 +8,19 @@ import {
   type PoseAssessment,
 } from "../types/electrode";
 import { assessTorsoPose, getTorsoFrame, mapElectrodes } from "../lib/electrodeMapping";
+import { CircleDetectClient } from "../lib/circleDetectClient";
+import { CirclePlacementSmoother } from "../lib/circleSmoother";
 import { matchCirclesToTargets, summarizePlacements } from "../lib/electrodeMatch";
 import { drawOverlay } from "../lib/overlayRenderer";
 import { PoseDetector } from "../lib/poseDetector";
-import { detectStickerCircles } from "../lib/simpleCircleDetector";
 import { LandmarkSmoother } from "../lib/smoothing";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { CameraFeed } from "./CameraFeed";
+import { MeasurementGuidePanel } from "./MeasurementGuidePanel";
 import { OverlayCanvas } from "./OverlayCanvas";
+import { PrivacyOnboarding } from "./PrivacyOnboarding";
 
-const CIRCLE_DETECT_EVERY_MS = 400;
+const CIRCLE_DETECT_EVERY_MS = 350;
 const HOLD_EMPTY_DETECTIONS = 4;
 
 const MIRROR_VIDEO = true;
@@ -46,7 +49,9 @@ export function ElectrodeGuide() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectorRef = useRef<PoseDetector | null>(null);
   const stickerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const circleClientRef = useRef<CircleDetectClient | null>(null);
   const smootherRef = useRef(new LandmarkSmoother(DEFAULT_CALIBRATION.alpha));
+  const circleSmootherRef = useRef(new CirclePlacementSmoother(0.32, 0.14));
   const calibrationRef = useRef<CalibrationSettings>(DEFAULT_CALIBRATION);
   const showDebugRef = useRef(true);
   const lastStatusKey = useRef("");
@@ -54,6 +59,7 @@ export function ElectrodeGuide() {
   const placementsRef = useRef<ElectrodePlacement[]>([]);
   const lastCircleDetectAtRef = useRef(0);
   const emptyDetectStreakRef = useRef(0);
+  const detectGenRef = useRef(0);
   const videoFitRef = useRef<"cover" | "contain">("cover");
 
   const [modelState, setModelState] = useState<"loading" | "ready" | "error">("loading");
@@ -68,6 +74,10 @@ export function ElectrodeGuide() {
   const [showDebug, setShowDebug] = useState(true);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
+  const [privacyAcked, setPrivacyAcked] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [privacyContinueStartsCamera, setPrivacyContinueStartsCamera] = useState(false);
+  const [showMeasureGuide, setShowMeasureGuide] = useState(false);
   const [windowHeightVh, setWindowHeightVh] = useState(getDefaultWindowHeightVh);
   const hasCustomHeight = useRef(false);
   const resizeDragRef = useRef<{
@@ -199,12 +209,21 @@ export function ElectrodeGuide() {
     }
 
     const smoother = smootherRef.current;
+    const circleSmoother = circleSmootherRef.current;
     smoother.reset();
+    circleSmoother.reset();
     lastStatusKey.current = "";
     lastPlacementKey.current = "";
     placementsRef.current = [];
     lastCircleDetectAtRef.current = 0;
     emptyDetectStreakRef.current = 0;
+    detectGenRef.current += 1;
+    const detectGen = detectGenRef.current;
+
+    if (!circleClientRef.current) {
+      circleClientRef.current = new CircleDetectClient();
+    }
+    const circleClient = circleClientRef.current;
 
     let raf = 0;
     let cancelled = false;
@@ -247,42 +266,68 @@ export function ElectrodeGuide() {
           const smoothed = raw ? smoother.apply(raw) : null;
           const pose = assessTorsoPose(smoothed);
           const electrodes = smoothed ? mapElectrodes(smoothed, calibrationRef.current) : null;
+          const torso = smoothed ? getTorsoFrame(smoothed) : null;
+          const torsoWidth = torso?.torsoWidth ?? 0.3;
 
           const now = performance.now();
           if (
             smoothed &&
             electrodes &&
+            !circleClient.isBusy &&
             now - lastCircleDetectAtRef.current >= CIRCLE_DETECT_EVERY_MS
           ) {
             lastCircleDetectAtRef.current = now;
             if (!stickerCanvasRef.current) {
               stickerCanvasRef.current = document.createElement("canvas");
             }
-            let circles: ReturnType<typeof detectStickerCircles> = [];
-            try {
-              circles = detectStickerCircles(video, smoothed, stickerCanvasRef.current);
-            } catch {
-              circles = [];
-            }
-            if (circles.length === 0) {
-              emptyDetectStreakRef.current += 1;
-              if (emptyDetectStreakRef.current >= HOLD_EMPTY_DETECTIONS) {
-                placementsRef.current = [];
-              }
-            } else {
-              emptyDetectStreakRef.current = 0;
-              const torso = getTorsoFrame(smoothed);
-              placementsRef.current = matchCirclesToTargets(
-                circles,
-                electrodes,
-                torso?.torsoWidth ?? 0.3,
-                width,
-                height,
-              );
-            }
+            const landmarksAtDetect = smoothed;
+            const electrodesAtDetect = electrodes;
+            const widthAtDetect = width;
+            const heightAtDetect = height;
+            const torsoWidthAtDetect = torsoWidth;
+
+            void circleClient
+              .detect(video, landmarksAtDetect, stickerCanvasRef.current)
+              .then((circles) => {
+                if (cancelled || detectGenRef.current !== detectGen) {
+                  return;
+                }
+                if (circles.length === 0) {
+                  emptyDetectStreakRef.current += 1;
+                  if (emptyDetectStreakRef.current >= HOLD_EMPTY_DETECTIONS) {
+                    circleSmoother.reset();
+                    placementsRef.current = [];
+                  }
+                  return;
+                }
+                emptyDetectStreakRef.current = 0;
+                const matched = matchCirclesToTargets(
+                  circles,
+                  electrodesAtDetect,
+                  torsoWidthAtDetect,
+                  widthAtDetect,
+                  heightAtDetect,
+                  { previousDetected: circleSmoother.previousDetected() },
+                );
+                circleSmoother.ingest(matched);
+              })
+              .catch(() => {
+                /* keep last smoothed placements */
+              });
           } else if (!electrodes) {
+            circleSmoother.reset();
             placementsRef.current = [];
             emptyDetectStreakRef.current = 0;
+          }
+
+          // Every frame: ease toward last raw detections + refresh targets/offsets.
+          if (electrodes) {
+            placementsRef.current = circleSmoother.tick(
+              electrodes,
+              torsoWidth,
+              width,
+              height,
+            );
           }
 
           const placements = placementsRef.current;
@@ -331,6 +376,7 @@ export function ElectrodeGuide() {
 
     return () => {
       cancelled = true;
+      detectGenRef.current += 1;
       cancelAnimationFrame(raf);
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
@@ -340,6 +386,13 @@ export function ElectrodeGuide() {
     };
   }, [cameraOn, modelState]);
 
+  useEffect(() => {
+    return () => {
+      circleClientRef.current?.dispose();
+      circleClientRef.current = null;
+    };
+  }, []);
+
   const aspect = frameSize.width / Math.max(1, frameSize.height);
   const letterbox =
     typeof window !== "undefined" &&
@@ -347,6 +400,29 @@ export function ElectrodeGuide() {
     aspect > 1.05;
   videoFitRef.current = letterbox ? "contain" : "cover";
   const detected = cameraOn && assessment.detected && assessment.issue === null;
+
+  const requestStartCamera = useCallback(() => {
+    if (privacyAcked) {
+      setCameraOn(true);
+      return;
+    }
+    setPrivacyContinueStartsCamera(true);
+    setShowPrivacy(true);
+  }, [privacyAcked]);
+
+  const handlePrivacyContinue = useCallback(() => {
+    setPrivacyAcked(true);
+    setShowPrivacy(false);
+    if (privacyContinueStartsCamera) {
+      setCameraOn(true);
+    }
+    setPrivacyContinueStartsCamera(false);
+  }, [privacyContinueStartsCamera]);
+
+  const reopenPrivacy = useCallback(() => {
+    setPrivacyContinueStartsCamera(false);
+    setShowPrivacy(true);
+  }, []);
 
   return (
     <div className="guide">
@@ -365,6 +441,28 @@ export function ElectrodeGuide() {
             onError={handleCameraError}
           />
           <OverlayCanvas canvasRef={canvasRef} />
+          {cameraOn ? (
+            <div className="privacy-badge" aria-live="polite">
+              <span className="privacy-badge-icon" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9.5 12.5l1.8 1.8 3.7-3.8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              Private — not recorded
+            </div>
+          ) : null}
         </div>
 
         {!cameraOn ? (
@@ -376,11 +474,7 @@ export function ElectrodeGuide() {
               V1–V6) overlaid on your torso. This is an assistance guide, not a
               certified medical device.
             </p>
-            <p className="sticker-hint">
-              For live detection, use solid 20mm stickers in a bright,
-              high-contrast color — green, orange, magenta, or blue. Avoid
-              skin-like tones.
-            </p>
+            
             {modelState === "loading" ? (
               <p className="status-line">Loading pose model…</p>
             ) : null}
@@ -394,13 +488,24 @@ export function ElectrodeGuide() {
               type="button"
               className="primary-btn"
               disabled={modelState !== "ready"}
-              onClick={() => setCameraOn(true)}
+              onClick={requestStartCamera}
             >
               Start camera
             </button>
+            <div className="idle-links">
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => setShowMeasureGuide(true)}
+              >
+                Need help? Use the measurement guide
+              </button>
+              <button type="button" className="text-btn" onClick={reopenPrivacy}>
+                About privacy
+              </button>
+            </div>
           </div>
         ) : null}
-
       </div>
 
       {cameraOn ? (
@@ -465,6 +570,14 @@ export function ElectrodeGuide() {
                 Stop camera
               </button>
 
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowMeasureGuide(true)}
+              >
+                Measurement guide
+              </button>
+
               <label className="toggle">
                 <input
                   type="checkbox"
@@ -484,6 +597,16 @@ export function ElectrodeGuide() {
           </div>
         </div>
       ) : null}
+
+      <PrivacyOnboarding
+        open={showPrivacy}
+        onContinue={handlePrivacyContinue}
+        continueLabel={privacyContinueStartsCamera ? "Start camera" : "Got it"}
+      />
+      <MeasurementGuidePanel
+        open={showMeasureGuide}
+        onClose={() => setShowMeasureGuide(false)}
+      />
     </div>
   );
 }
