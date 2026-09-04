@@ -187,29 +187,31 @@ input {
 
 .privacy-badge {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  z-index: 2;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 8px;
+  max-width: min(46vw, 200px);
+  padding: 5px 9px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(8, 12, 16, 0.55);
-  backdrop-filter: blur(8px);
-  color: rgba(238, 244, 246, 0.78);
-  font-size: 0.68rem;
+  background: rgba(8, 12, 16, 0.72);
+  backdrop-filter: blur(10px);
+  color: rgba(238, 244, 246, 0.88);
+  font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  pointer-events: none;
   line-height: 1.2;
+  pointer-events: none;
 }
 
 .privacy-badge-icon {
   display: inline-flex;
   color: var(--teal);
   opacity: 0.9;
+  flex-shrink: 0;
 }
 
 .modal-backdrop {
@@ -364,6 +366,10 @@ input {
 
 .hud-top,
 .hud-bottom,
+.hud-toolbar,
+.hud-actions,
+.hud-devtools,
+.hud-status,
 .controls,
 .legend,
 .pill,
@@ -387,14 +393,67 @@ input {
 .hud-top {
   flex-direction: column;
   align-items: stretch;
-  gap: 14px;
+  gap: 10px;
+  /* Keep status clear of the absolute privacy badge on the right */
+  padding-right: min(46vw, 168px);
 }
 
-.hud-chips {
+.hud-status {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.hud-bottom {
+  width: 100%;
+  align-items: stretch;
+}
+
+.hud-toolbar {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(8, 12, 16, 0.82);
+  backdrop-filter: blur(14px);
+}
+
+.hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.hud-actions > .primary-btn,
+.hud-actions > .ghost-btn,
+.hud-actions > .calibration {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 9.75rem;
+}
+
+.hud-actions > .primary-btn,
+.hud-actions > .ghost-btn,
+.hud-actions > .calibration > .ghost-btn {
+  width: 100%;
+  min-height: 44px;
+  text-align: center;
+}
+
+.hud-devtools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -423,7 +482,7 @@ input {
 }
 
 .legend {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -432,6 +491,7 @@ input {
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .swatch {
@@ -449,13 +509,6 @@ input {
 .swatch.limb {
   background: var(--amber);
   margin-left: 10px;
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .primary-btn,
@@ -489,9 +542,16 @@ input {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--muted);
+}
+
+.toggle-compact {
+  padding: 2px 4px;
+  font-size: 0.78rem;
+  border: 0;
+  background: transparent;
 }
 
 .banner {
@@ -524,17 +584,33 @@ input {
 .calibration {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 8px;
+  min-width: 0;
+}
+
+.calibration > .ghost-btn {
+  white-space: nowrap;
 }
 
 .calibration-body {
-  width: min(320px, calc(100vw - 32px));
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: auto;
+  max-width: none;
   padding: 14px;
   border-radius: 14px;
-  background: var(--panel);
+  background: rgba(10, 14, 18, 0.96);
   border: 1px solid var(--line);
   backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.calibration.is-open {
+  position: static;
 }
 
 .calibration-body .hint {
@@ -582,48 +658,125 @@ input {
       calc(100vw / var(--ar, 1.777))
     );
   }
+
+  .privacy-badge {
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    right: 16px;
+    max-width: none;
+    white-space: nowrap;
+  }
+
+  .hud-top {
+    padding-right: 190px;
+  }
+
+  .hud-bottom {
+    justify-content: center;
+  }
+
+  .hud-toolbar {
+    width: min(640px, 100%);
+    margin-inline: auto;
+  }
+
+  .hud-actions > .primary-btn,
+  .hud-actions > .ghost-btn,
+  .hud-actions > .calibration {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .calibration-body {
+    left: auto;
+    right: 8px;
+    width: min(320px, calc(100% - 16px));
+  }
 }
 
 @media (max-width: 767px) {
   .hud {
-    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px
-      calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 10px
+      calc(10px + env(safe-area-inset-bottom, 0px));
   }
 
-  .hud-chips {
-    align-items: center;
+  .privacy-badge {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    right: 10px;
+    font-size: 0.62rem;
+    padding: 4px 8px;
+    max-width: 42vw;
+  }
+
+  .hud-top {
+    gap: 8px;
+    padding-right: min(44vw, 150px);
+  }
+
+  .hud-status {
     gap: 6px;
   }
 
-  .pill,
-  .legend {
+  .pill {
     padding: 6px 10px;
     font-size: 0.78rem;
+  }
+
+  .legend {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    gap: 6px;
+  }
+
+  .swatch.precordial {
+    margin-left: 2px;
+  }
+
+  .swatch.limb {
+    margin-left: 6px;
+  }
+
+  .hud-hint {
+    font-size: 0.72rem;
+    padding: 5px 8px;
+  }
+
+  .hud-toolbar {
+    gap: 6px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  /* Stop on its own row; Calibration + Measurement share the next row */
+  .hud-actions > .primary-btn {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .hud-actions > .ghost-btn,
+  .hud-actions > .calibration {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .hud-actions > .primary-btn,
+  .hud-actions > .ghost-btn,
+  .hud-actions > .calibration > .ghost-btn {
+    padding: 10px 10px;
+    font-size: 0.84rem;
   }
 
   .idle-card {
     padding: 22px 18px;
   }
 
-  .privacy-badge {
-    bottom: 8px;
-    left: 8px;
-    font-size: 0.64rem;
-    padding: 3px 7px;
-  }
-
   .measure-guide-header {
     flex-wrap: wrap;
   }
 
-  .hud-bottom {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-
-  .calibration,
   .calibration-body {
-    align-items: stretch;
-    width: 100%;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: calc(100% + 8px);
   }
 }

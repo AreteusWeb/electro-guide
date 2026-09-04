@@ -14,6 +14,7 @@ import { matchCirclesToTargets, summarizePlacements } from "../lib/electrodeMatc
 import { drawOverlay } from "../lib/overlayRenderer";
 import { PoseDetector } from "../lib/poseDetector";
 import { LandmarkSmoother } from "../lib/smoothing";
+import { SHOW_DEV_TOOLS } from "../lib/devFlags";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { CameraFeed } from "./CameraFeed";
 import { MeasurementGuidePanel } from "./MeasurementGuidePanel";
@@ -71,7 +72,7 @@ export function ElectrodeGuide() {
       ? { width: 720, height: 1280 }
       : { width: 1280, height: 720 },
   );
-  const [showDebug, setShowDebug] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibration, setCalibration] = useState<CalibrationSettings>(DEFAULT_CALIBRATION);
   const [privacyAcked, setPrivacyAcked] = useState(false);
@@ -101,7 +102,7 @@ export function ElectrodeGuide() {
   });
 
   calibrationRef.current = calibration;
-  showDebugRef.current = showDebug;
+  showDebugRef.current = SHOW_DEV_TOOLS && showDebug;
 
   useEffect(() => {
     const detector = new PoseDetector();
@@ -441,28 +442,6 @@ export function ElectrodeGuide() {
             onError={handleCameraError}
           />
           <OverlayCanvas canvasRef={canvasRef} />
-          {cameraOn ? (
-            <div className="privacy-badge" aria-live="polite">
-              <span className="privacy-badge-icon" aria-hidden="true">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M9.5 12.5l1.8 1.8 3.7-3.8"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              Private — not recorded
-            </div>
-          ) : null}
         </div>
 
         {!cameraOn ? (
@@ -529,8 +508,29 @@ export function ElectrodeGuide() {
 
       {cameraOn ? (
         <div className="hud">
+          <div className="privacy-badge" aria-live="polite">
+            <span className="privacy-badge-icon" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M9.5 12.5l1.8 1.8 3.7-3.8"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            Private — not recorded
+          </div>
+
           <div className="hud-top">
-            <div className="hud-chips">
+            <div className="hud-status">
               <div className={`pill ${detected ? "ok" : "off"}`}>
                 {detected ? "Torso detected" : "Torso not detected"}
               </div>
@@ -539,7 +539,7 @@ export function ElectrodeGuide() {
                 <span className="swatch limb" /> RA/LA/RL/LL
               </div>
             </div>
-            {assessment.message ? (
+            {assessment.message && assessment.issue !== "no-torso" ? (
               <div className="banner banner-warn" role="status">
                 {assessment.message}
               </div>
@@ -555,45 +555,50 @@ export function ElectrodeGuide() {
                     : `${placementSummary.detected}/10 electrodes detected, ${placementSummary.placed} correctly placed`}
               </div>
             ) : null}
-            <p className="sticker-hint hud-hint">
-              20mm bright green, orange, magenta, or blue stickers work best.
-            </p>
+            {SHOW_DEV_TOOLS ? (
+              <p className="sticker-hint hud-hint">
+                20mm bright green, orange, magenta, or blue stickers work best.
+              </p>
+            ) : null}
           </div>
 
           <div className="hud-bottom">
-            <div className="controls">
-              <button
-                type="button"
-                className="primary-btn"
-                onClick={() => setCameraOn(false)}
-              >
-                Stop camera
-              </button>
-
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={() => setShowMeasureGuide(true)}
-              >
-                Measurement guide
-              </button>
-
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={showDebug}
-                  onChange={(event) => setShowDebug(event.target.checked)}
+            <div className="hud-toolbar">
+              <div className="hud-actions">
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={() => setCameraOn(false)}
+                >
+                  Stop camera
+                </button>
+                <CalibrationPanel
+                  open={showCalibration}
+                  onToggle={() => setShowCalibration((open) => !open)}
+                  settings={calibration}
+                  onChange={setCalibration}
                 />
-                Debug skeleton
-              </label>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => setShowMeasureGuide(true)}
+                >
+                  Measurement guide
+                </button>
+              </div>
+              {SHOW_DEV_TOOLS ? (
+                <div className="hud-devtools">
+                  <label className="toggle toggle-compact">
+                    <input
+                      type="checkbox"
+                      checked={showDebug}
+                      onChange={(event) => setShowDebug(event.target.checked)}
+                    />
+                    Debug skeleton
+                  </label>
+                </div>
+              ) : null}
             </div>
-
-            <CalibrationPanel
-              open={showCalibration}
-              onToggle={() => setShowCalibration((open) => !open)}
-              settings={calibration}
-              onChange={setCalibration}
-            />
           </div>
         </div>
       ) : null}
