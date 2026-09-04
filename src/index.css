@@ -698,15 +698,15 @@ input {
   }
 
   .hud-bottom {
-    justify-content: flex-end;
-    align-self: flex-end;
-    width: auto;
-    margin-left: auto;
+    justify-content: center;
+    align-self: center;
+    width: 100%;
+    margin-left: 0;
   }
 
   .hud-toolbar {
     width: max-content;
-    margin: 0;
+    margin: 0 auto;
   }
 
   .hud-toolbar .toolbar-btn,
