@@ -14,7 +14,6 @@ import { matchCirclesToTargets, summarizePlacements } from "../lib/electrodeMatc
 import { drawOverlay } from "../lib/overlayRenderer";
 import { PoseDetector } from "../lib/poseDetector";
 import { LandmarkSmoother } from "../lib/smoothing";
-import { SHOW_DEV_TOOLS } from "../lib/devFlags";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { CameraFeed } from "./CameraFeed";
 import { MeasurementGuidePanel } from "./MeasurementGuidePanel";
@@ -455,6 +454,105 @@ export function ElectrodeGuide() {
             onError={handleCameraError}
           />
           <OverlayCanvas canvasRef={canvasRef} />
+
+          {cameraOn ? (
+            <div className="hud">
+              <div className="privacy-badge" aria-live="polite">
+                <span className="privacy-badge-icon" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M9.5 12.5l1.8 1.8 3.7-3.8"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                Private — not recorded
+              </div>
+
+              <div className="hud-top">
+                <div className="hud-status">
+                  <div className={`pill ${detected ? "ok" : "off"}`}>
+                    {detected ? "Torso detected" : "Torso not detected"}
+                  </div>
+                  <div className="legend">
+                    <span className="swatch precordial" /> V1–V6
+                    <span className="swatch limb" /> RA/LA/RL/LL
+                  </div>
+                </div>
+                {assessment.message && assessment.issue !== "no-torso" ? (
+                  <div className="banner banner-warn" role="status">
+                    {assessment.message}
+                  </div>
+                ) : null}
+                {detected ? (
+                  <div
+                    className={`pill placement ${allPlaced ? "ok" : placementSummary.placed > 0 ? "partial" : ""}`}
+                  >
+                    {circleDetectorState === "loading" ? (
+                      "Loading circle detector…"
+                    ) : circleDetectorState === "error" ? (
+                      "Circle detector unavailable"
+                    ) : (
+                      <>
+                        <span className="pill-status-icon" aria-hidden="true">
+                          {allPlaced ? "✓" : placementSummary.placed > 0 ? "!" : "✗"}
+                        </span>
+                        {`${placementSummary.detected}/10 detected · ${placementSummary.placed} ✓ placed`}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="hud-bottom">
+                <div className="hud-toolbar">
+                  <div className="hud-actions">
+                    <button
+                      type="button"
+                      className="primary-btn toolbar-btn"
+                      onClick={() => setCameraOn(false)}
+                    >
+                      Stop camera
+                    </button>
+                    <CalibrationPanel
+                      open={showCalibration}
+                      onToggle={() => setShowCalibration((open) => !open)}
+                      settings={calibration}
+                      onChange={setCalibration}
+                      compact
+                    />
+                    <button
+                      type="button"
+                      className="ghost-btn toolbar-btn"
+                      onClick={() => setShowMeasureGuide(true)}
+                    >
+                      Measurement guide
+                    </button>
+                    <label
+                      className="toggle toggle-compact hud-dev-inline"
+                      title="Show / hide pose skeleton"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showDebug}
+                        onChange={(event) => setShowDebug(event.target.checked)}
+                      />
+                      Skeleton
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {!cameraOn ? (
@@ -517,110 +615,6 @@ export function ElectrodeGuide() {
           onPointerUp={endResizeDrag}
           onPointerCancel={endResizeDrag}
         />
-      ) : null}
-
-      {cameraOn ? (
-        <div className="hud">
-          <div className="privacy-badge" aria-live="polite">
-            <span className="privacy-badge-icon" aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M9.5 12.5l1.8 1.8 3.7-3.8"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            Private — not recorded
-          </div>
-
-          <div className="hud-top">
-            <div className="hud-status">
-              <div className={`pill ${detected ? "ok" : "off"}`}>
-                {detected ? "Torso detected" : "Torso not detected"}
-              </div>
-              <div className="legend">
-                <span className="swatch precordial" /> V1–V6
-                <span className="swatch limb" /> RA/LA/RL/LL
-              </div>
-            </div>
-            {assessment.message && assessment.issue !== "no-torso" ? (
-              <div className="banner banner-warn" role="status">
-                {assessment.message}
-              </div>
-            ) : null}
-            {detected ? (
-              <div
-                className={`pill placement ${allPlaced ? "ok" : placementSummary.placed > 0 ? "partial" : ""}`}
-              >
-                {circleDetectorState === "loading" ? (
-                  "Loading circle detector…"
-                ) : circleDetectorState === "error" ? (
-                  "Circle detector unavailable"
-                ) : (
-                  <>
-                    <span className="pill-status-icon" aria-hidden="true">
-                      {allPlaced ? "✓" : placementSummary.placed > 0 ? "!" : "✗"}
-                    </span>
-                    {`${placementSummary.detected}/10 detected · ${placementSummary.placed} ✓ placed`}
-                  </>
-                )}
-              </div>
-            ) : null}
-            {SHOW_DEV_TOOLS ? (
-              <p className="sticker-hint hud-hint">
-                20mm bright green, orange, magenta, or blue stickers work best.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="hud-bottom">
-            <div className="hud-toolbar">
-              <div className="hud-actions">
-                <button
-                  type="button"
-                  className="primary-btn toolbar-btn"
-                  onClick={() => setCameraOn(false)}
-                >
-                  Stop camera
-                </button>
-                <CalibrationPanel
-                  open={showCalibration}
-                  onToggle={() => setShowCalibration((open) => !open)}
-                  settings={calibration}
-                  onChange={setCalibration}
-                  compact
-                />
-                <button
-                  type="button"
-                  className="ghost-btn toolbar-btn"
-                  onClick={() => setShowMeasureGuide(true)}
-                >
-                  Measurement guide
-                </button>
-                <label
-                  className="toggle toggle-compact hud-dev-inline"
-                  title="Show / hide pose skeleton"
-                >
-                  <input
-                    type="checkbox"
-                    checked={showDebug}
-                    onChange={(event) => setShowDebug(event.target.checked)}
-                  />
-                  Skeleton
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
       ) : null}
 
       <PrivacyOnboarding

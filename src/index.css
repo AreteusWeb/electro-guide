@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --bg: #07090c;
+  --bg: #000000;
   --panel: rgba(10, 14, 18, 0.72);
   --line: rgba(255, 255, 255, 0.12);
   --text: #eef4f6;
@@ -44,7 +44,7 @@ input {
   inset: 0;
   display: grid;
   place-items: start center;
-  background: #05070a;
+  background: #000;
 }
 
 .viewport {
@@ -746,11 +746,19 @@ input {
       calc(var(--video-window-vh, 100) * 1dvh),
       calc(100vw / var(--ar, 1.777))
     );
+    /* Let calibration popover extend above the toolbar */
+    overflow: visible;
+  }
+
+  .hud {
+    /* Inside the video frame — no screen safe-area inset needed */
+    padding: 12px 12px 14px;
+    border-radius: inherit;
   }
 
   .privacy-badge {
-    top: calc(16px + env(safe-area-inset-top, 0px));
-    right: 16px;
+    top: 12px;
+    right: 12px;
     max-width: none;
     white-space: nowrap;
   }
