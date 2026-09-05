@@ -19,6 +19,7 @@ import { CalibrationPanel } from "./CalibrationPanel";
 import { CameraFeed } from "./CameraFeed";
 import { MeasurementGuidePanel } from "./MeasurementGuidePanel";
 import { OverlayCanvas } from "./OverlayCanvas";
+import { PlacementCompleteOverlay } from "./PlacementCompleteOverlay";
 import { PrivacyOnboarding } from "./PrivacyOnboarding";
 
 const CIRCLE_DETECT_EVERY_MS = 350;
@@ -79,6 +80,7 @@ export function ElectrodeGuide() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [privacyContinueStartsCamera, setPrivacyContinueStartsCamera] = useState(false);
   const [showMeasureGuide, setShowMeasureGuide] = useState(false);
+  const [completeDismissed, setCompleteDismissed] = useState(false);
   const [windowHeightVh, setWindowHeightVh] = useState(getDefaultWindowHeightVh);
   const hasCustomHeight = useRef(false);
   const resizeDragRef = useRef<{
@@ -401,6 +403,17 @@ export function ElectrodeGuide() {
     aspect > 1.05;
   videoFitRef.current = letterbox ? "contain" : "cover";
   const detected = cameraOn && assessment.detected && assessment.issue === null;
+  const allPlaced =
+    placementSummary.detected === placementSummary.total &&
+    placementSummary.placed === placementSummary.total &&
+    placementSummary.total > 0;
+  const showCompleteOverlay = cameraOn && allPlaced && !completeDismissed;
+
+  useEffect(() => {
+    if (!allPlaced) {
+      setCompleteDismissed(false);
+    }
+  }, [allPlaced]);
 
   const requestStartCamera = useCallback(() => {
     if (privacyAcked) {
@@ -546,13 +559,20 @@ export function ElectrodeGuide() {
             ) : null}
             {detected ? (
               <div
-                className={`pill placement ${placementSummary.placed === placementSummary.total ? "ok" : ""}`}
+                className={`pill placement ${allPlaced ? "ok" : placementSummary.placed > 0 ? "partial" : ""}`}
               >
-                {circleDetectorState === "loading"
-                  ? "Loading circle detector…"
-                  : circleDetectorState === "error"
-                    ? "Circle detector unavailable"
-                    : `${placementSummary.detected}/10 electrodes detected, ${placementSummary.placed} correctly placed`}
+                {circleDetectorState === "loading" ? (
+                  "Loading circle detector…"
+                ) : circleDetectorState === "error" ? (
+                  "Circle detector unavailable"
+                ) : (
+                  <>
+                    <span className="pill-status-icon" aria-hidden="true">
+                      {allPlaced ? "✓" : placementSummary.placed > 0 ? "!" : "✗"}
+                    </span>
+                    {`${placementSummary.detected}/10 detected · ${placementSummary.placed} ✓ placed`}
+                  </>
+                )}
               </div>
             ) : null}
             {SHOW_DEV_TOOLS ? (
@@ -611,6 +631,10 @@ export function ElectrodeGuide() {
       <MeasurementGuidePanel
         open={showMeasureGuide}
         onClose={() => setShowMeasureGuide(false)}
+      />
+      <PlacementCompleteOverlay
+        open={showCompleteOverlay}
+        onContinue={() => setCompleteDismissed(true)}
       />
     </div>
   );

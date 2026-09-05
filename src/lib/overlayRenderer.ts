@@ -249,9 +249,12 @@ function drawElectrodes(
       const from = toScreen(placement.detected.x, placement.detected.y);
       const gap = Math.hypot(from.x - p.x, from.y - p.y);
       if (ok) {
-        drawCheck(ctx, p, radius, ui);
-      } else if (gap >= radius * 1.6) {
-        drawArrow(ctx, from, p, OFFSET_COLOR, ui);
+        drawStatusBadge(ctx, p, radius, ui, "ok");
+      } else {
+        drawStatusBadge(ctx, from, Math.max(6, radius * 0.95), ui, "bad");
+        if (gap >= radius * 1.6) {
+          drawArrow(ctx, from, p, OFFSET_COLOR, ui);
+        }
       }
 
       ctx.beginPath();
@@ -325,20 +328,46 @@ function drawArrow(
   ctx.fill();
 }
 
-function drawCheck(
+function drawStatusBadge(
   ctx: CanvasRenderingContext2D,
   p: ScreenPoint,
   radius: number,
   ui: number,
+  kind: "ok" | "bad",
 ): void {
-  ctx.strokeStyle = "#06251f";
-  ctx.lineWidth = 2 * ui;
+  const badgeR = Math.max(9 * ui, radius * 0.95);
+  const fill = kind === "ok" ? PLACED_COLOR : OFFSET_COLOR;
+  const ink = kind === "ok" ? "#06251f" : "#1a0a08";
+
+  ctx.beginPath();
+  ctx.fillStyle = fill;
+  ctx.arc(p.x, p.y, badgeR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 1.5 * ui;
+  ctx.strokeStyle = "rgba(7, 9, 12, 0.55)";
+  ctx.stroke();
+
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
+  ctx.lineWidth = Math.max(2.25 * ui, 2);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+
+  if (kind === "ok") {
+    ctx.beginPath();
+    ctx.moveTo(p.x - badgeR * 0.42, p.y + badgeR * 0.02);
+    ctx.lineTo(p.x - badgeR * 0.1, p.y + badgeR * 0.38);
+    ctx.lineTo(p.x + badgeR * 0.46, p.y - badgeR * 0.34);
+    ctx.stroke();
+    return;
+  }
+
+  const arm = badgeR * 0.38;
   ctx.beginPath();
-  ctx.moveTo(p.x - radius * 0.35, p.y);
-  ctx.lineTo(p.x - radius * 0.08, p.y + radius * 0.32);
-  ctx.lineTo(p.x + radius * 0.4, p.y - radius * 0.3);
+  ctx.moveTo(p.x - arm, p.y - arm);
+  ctx.lineTo(p.x + arm, p.y + arm);
+  ctx.moveTo(p.x + arm, p.y - arm);
+  ctx.lineTo(p.x - arm, p.y + arm);
   ctx.stroke();
 }
 

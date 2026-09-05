@@ -512,9 +512,61 @@ input {
   color: #ffb4b4;
 }
 
+.pill.partial {
+  border-color: rgba(240, 180, 41, 0.45);
+  color: #ffe3a1;
+}
+
 .pill.placement {
   align-self: flex-start;
   max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pill.placement.ok .pill-status-icon {
+  background: rgba(62, 224, 199, 0.28);
+  color: var(--teal);
+}
+
+.pill.placement.partial .pill-status-icon {
+  background: rgba(240, 180, 41, 0.28);
+  color: #ffe3a1;
+}
+
+.pill.placement:not(.ok):not(.partial) .pill-status-icon {
+  background: rgba(255, 138, 76, 0.28);
+  color: #ffb086;
+}
+
+.placement-complete-icon {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 10px;
+  color: var(--teal);
+}
+
+.placement-complete-modal h2 {
+  margin-bottom: 10px;
+}
+
+.placement-complete-backdrop {
+  z-index: 22;
 }
 
 .legend {
